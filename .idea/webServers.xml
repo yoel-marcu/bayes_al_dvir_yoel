@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="819a9b99-e689-44b9-901d-df5cac0a581a" name="phoenix">
+        <fileTransfer accessType="SFTP" host="phoenix.cs.huji.ac.il" port="22" sshConfigId="eb3247cd-c2ad-4a90-84fe-347aa899fb3b" sshConfig="itai.david@phoenix.cs.huji.ac.il:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="43e4d18f-d912-4be4-8fe2-ff3d29fe78aa" name="bava">
+        <fileTransfer accessType="SFTP" host="bava.cs.huji.ac.il" port="22" sshConfigId="e35ca766-ab52-4f38-a639-daf155317cfb" sshConfig="itai.david@bava.cs.huji.ac.il:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="b4e989b0-01e3-40c2-a4b0-21d49b61a0e6" name="inari">
+        <fileTransfer rootFolder="/cs/labs/daphna/itai.david/py_repos/TypiClust/deep-al" accessType="SFTP" host="inari.cs.huji.ac.il" port="22" sshConfigId="550c0845-0e0a-4bc2-9aed-9adbc0e16955" sshConfig="itai.david@inari.cs.huji.ac.il:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

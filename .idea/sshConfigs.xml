@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="phoenix.cs.huji.ac.il" id="eb3247cd-c2ad-4a90-84fe-347aa899fb3b" port="22" nameFormat="DESCRIPTIVE" username="itai.david" useOpenSSHConfig="true" />
+      <sshConfig authType="PASSWORD" host="bava.cs.huji.ac.il" id="e35ca766-ab52-4f38-a639-daf155317cfb" port="22" nameFormat="DESCRIPTIVE" username="itai.david" useOpenSSHConfig="true" />
+      <sshConfig authType="PASSWORD" host="inari.cs.huji.ac.il" id="550c0845-0e0a-4bc2-9aed-9adbc0e16955" port="22" nameFormat="DESCRIPTIVE" username="itai.david" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>
