@@ -1,12 +1,8 @@
 import numpy as np
-import pandas as pd
 import torch
-import gc
 import pycls.datasets.utils as ds_utils
 from tools.utils import visualize_tsne
 import time
-from torch.profiler import profile, record_function, ProfilerActivity
-import matplotlib.pyplot as plt
 ###MISP = maximum importance sampling points
 torch.cuda.empty_cache()
 
@@ -62,11 +58,9 @@ class BAYES_MISP:
         self.all_features = ds_utils.load_features(self.ds_name, train=True)
         self.alpha = self.cfg.ALPHA
         self.debug = self.cfg.DEBUG
-        self.norm_importance = self.cfg.NORM_IMPORTANCE
         self.confidence_method = self.cfg.CONFIDENCE_METHOD if 'CONFIDENCE_METHOD' in self.cfg else 'max'
         self.budgetSize = budgetSize
         self.delta = delta
-        self.soft_border_val = self.cfg.SOFT_BORDER_VAL if 'SOFT_BORDER_VAL' in self.cfg else 0.15
         self.diff_method = self.cfg.DIFF_METHOD if 'DIFF_METHOD' in self.cfg else 'abs_diff'
         kernel_type = self.cfg.KERNEL_TYPE if 'KERNEL_TYPE' in self.cfg else 'rbf'
         if kernel_type == 'tophat':
@@ -76,16 +70,20 @@ class BAYES_MISP:
 
         self.train_labels_general = np.array(train_labels)
         unique_labels = np.unique(self.train_labels_general)
-        self.C_general = torch.full((self.all_features.shape[0], unique_labels.size), self.alpha, device='cuda', dtype=torch.float16)
+        # TODO: Transpose?
+        self.C_general = torch.full((self.all_features.shape[0], unique_labels.size), self.alpha, device='cuda', dtype=torch.float16) # Initialise the C matrix with constant alpha
         self.num_of_classes = np.unique(self.train_labels_general).size
         self.chosen_labels_num = torch.zeros(self.num_of_classes).to('cuda')
+
+        # C matrix induced by lset. TODO: Understand logic - is it the same as we know?
         if lset is not None and lset.size > 0:
+            # Compute kernel on entire dataset:
             temp_K = self.kernel_fn.compute_kernel(
                 torch.from_numpy(self.all_features), torch.from_numpy(self.all_features), self.delta).to('cuda')
+            # For each class, which indices already belong to it.
             class_indices = {label: np.where(self.train_labels_general[lset.astype(int)] == label)[0] for label in unique_labels}
 
             for label in unique_labels:
-
                 curr_labels_sim = temp_K[class_indices[label]]
                 self.C_general[:, label] = torch.max(curr_labels_sim, axis=0).values
             del temp_K, curr_labels_sim, class_indices
@@ -124,9 +122,14 @@ class BAYES_MISP:
         selected = []
         for i in range(self.budgetSize):
 
+            # Update local labeled set:
             curr_l_set = np.concatenate((np.arange(len(self.lSet)), selected)).astype(int)
+
+            # Normalise the C matrix in order to get expected distribution.
             C_sum = torch.sum(self.C, dim=1, keepdim=True)
             norm_C = self.C / C_sum
+
+            # Compute peakedness score:
             if self.diff_method == 'margin':
                 vals, inds = torch.topk(self.C, k=2, dim=1)
 
@@ -147,7 +150,7 @@ class BAYES_MISP:
                 # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
             else:
                 point_total_contribution = batched_diffs(self.K, self.C, diff_method=self.diff_method)
-            point_total_contribution[curr_l_set] = -np.inf
+            point_total_contribution[curr_l_set] = -np.inf # TODO: In Batched_diffs watch what happens to C in rows (~ theoretically cols) of labeled samples (negative control??)
             sampled_point = point_total_contribution.argmax().item()
             chosen_label = self.train_labels[sampled_point].item()
 
@@ -184,7 +187,7 @@ class BAYES_MISP:
         visualize_tsne(labeled_indices, sampled_indices, algo_name='MISP')
 
 def batched_diffs(K, C, alpha, number_of_classes, chunk_size=1024, diff_method="abs_diff"):
-    D, N = K.shape
+    D, N = K.shape # Shouldn't K be (N, N)??
     result = torch.empty(D).to(device=C.device)
     for start in range(0, N, chunk_size):
         end = min(start + chunk_size, N)
