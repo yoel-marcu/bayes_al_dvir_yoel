@@ -198,12 +198,13 @@ class BAYES_MISP:
                 point_total_contribution = batched_diffs(self.K, self.C, diff_method=self.diff_method)
             
             # TODO: In Batched_diffs watch what happens to C in rows (~ theoretically cols) of labeled samples (negative control??)
+            # Answer: the fact that they are labeled is completely ignored. (I think it is good and negative control is applied)
             point_total_contribution[curr_l_set] = -np.inf # Prevent re-sampling already labeled samples
             sampled_point_idx = point_total_contribution.argmax().item()
             chosen_label = self.train_labels[sampled_point_idx].item() # get label from oracle
 
-            self.chosen_labels_count[chosen_label] += 1
-            self.C[:, chosen_label] += self.K[sampled_point_idx] # Update rule for C
+            self.chosen_labels_count[chosen_label] += 1 # Redundant?
+            self.C[:, chosen_label] += self.K[sampled_point_idx] # Update rule for C. Here updated as in the formulation.
 
             assert sampled_point_idx not in selected_idxs, 'sample was already selected'
             selected_idxs.append(sampled_point_idx)
