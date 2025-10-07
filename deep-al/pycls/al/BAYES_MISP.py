@@ -16,22 +16,22 @@ torch.cuda.empty_cache()
 # 2. Refactor select_samples to smaller functions.
 
 
-def compute_norm(x1, x2, device, batch_size=512):
+def compute_norm(x1: torch.Tensor, x2: torch.Tensor, device, batch_size=512, pin_cpu=True):
     """
-    Compute pairwise L2 distances between two sets of vectors in batches.
-    In our usage, x1 = x2.
+    Compute Gram matrix in batches to reduce GPU memory consumption.
     """
-    # Creates new dim for batch use -> (1 x n x d), (1 x n' x d)
-    x1, x2 = x1.unsqueeze(0).to(device), x2.unsqueeze(0).to(device)
-    dist_matrix = []
-    n_batches = x2.shape[1] // batch_size + int(x2.shape[1] % batch_size > 0)
-    for i in range(n_batches):
-        # distance comparisons are done in batches to reduce memory consumption
-        x2_subset = x2[:, i * batch_size: (i + 1) * batch_size]
-        dist = torch.cdist(x1, x2_subset, p=2.0)
-        dist_matrix.append(dist.cpu())
+    x1, x2 = x1.to(device), x2.to(device)
+    n, m = x1.shape[0], x2.shape[0]
+    # Allocate the final matrix on CPU and pin it so not uneccessary transfers are done:
+    dist_cpu = torch.empty(size=(n,m), device='cpu', pin_memory=pin_cpu)
+
+    # Compute the distances where x2 is batched:
+    for start in range(0, m, batch_size):
+        end = min((start+batch_size), m)
+        dist = torch.cdist(x1, x2[start:end,:])
+        dist_cpu[:, start:end].copy_(dist, non_blocking=True) # Copy batch from GPU to pre-allocated CPu memory. Use DMA for efficiency.
         del dist
-    # (1, n, n') -> (n, n')
+
     dist_matrix = torch.cat(dist_matrix, dim=-1).squeeze(0)
     return dist_matrix
 
