@@ -31,9 +31,7 @@ def compute_norm(x1: torch.Tensor, x2: torch.Tensor, device, batch_size=512, pin
         dist = torch.cdist(x1, x2[start:end,:])
         dist_cpu[:, start:end].copy_(dist, non_blocking=True) # Copy batch from GPU to pre-allocated CPu memory. Use DMA for efficiency.
         del dist # Delete temporary batch distance from GPU memory.
-
-    dist_matrix = torch.cat(dist_matrix, dim=-1).squeeze(0)
-    return dist_matrix
+    return dist_cpu
 
 
 class RBFKernel(object):
