@@ -30,7 +30,7 @@ def compute_norm(x1: torch.Tensor, x2: torch.Tensor, device, batch_size=512, pin
         end = min((start+batch_size), m)
         dist = torch.cdist(x1, x2[start:end,:])
         dist_cpu[:, start:end].copy_(dist, non_blocking=True) # Copy batch from GPU to pre-allocated CPu memory. Use DMA for efficiency.
-        del dist
+        del dist # Delete temporary batch distance from GPU memory.
 
     dist_matrix = torch.cat(dist_matrix, dim=-1).squeeze(0)
     return dist_matrix
@@ -105,15 +105,15 @@ class BAYES_MISP:
         self.all_features = ds_utils.load_features(self.ds_name, train=True) # (datapoints, features)
         self.train_labels_general = np.array(train_labels) # Labels for oracle querying
         unique_labels = np.unique(self.train_labels_general) # Possible labels in the entire dataset
-        self.num_of_classes = np.unique(self.train_labels_general).size # Number of classes 'M'
-        self.chosen_labels_count = torch.zeros(self.num_of_classes).to('cuda') # Counting how many samples were chosen from each class
+        self.num_of_classes = np.unique(self.train_labels_general).size # Number of classes - 'M'
+        self.chosen_labels_count = torch.zeros(self.num_of_classes).to('cuda') # Counting how many samples were chosen from each class TODO: redundant?
         
         # C matrix
         self.alpha = self.cfg.ALPHA # Init prior
         # TODO: Transpose for consistency with theoretical formulation?
         self.C_general = torch.full((self.all_features.shape[0], unique_labels.size), self.alpha, device='cuda', dtype=torch.float16) # Initialise C when L = {}
 
-        # C matrix induced by lset. TODO: Understand logic - is it the same as we know?
+        # C matrix induced by lset.
         if lset is not None and lset.size > 0:
             # Compute kernel on entire dataset:
             temp_K = self.kernel_fn.compute_kernel(
@@ -122,7 +122,10 @@ class BAYES_MISP:
             class_indices = {label: np.where(self.train_labels_general[lset.astype(int)] == label)[0] for label in unique_labels}
 
             for label in unique_labels:
-                curr_labels_sim = temp_K[class_indices[label]]
+                curr_labels_sim = temp_K[class_indices[label]] # Rows in K that correspond to labeled samples of current label.
+                # For each sample, the value in C of the label m is the similarity to the closest labeled sample with label m:
+                # NOTE: this is different from the formulation - in which we add them all!!! (cumulative voting)
+                # For adjustment replace max with sum.
                 self.C_general[:, label] = torch.max(curr_labels_sim, axis=0).values
             del temp_K, curr_labels_sim, class_indices
         torch.cuda.empty_cache()
