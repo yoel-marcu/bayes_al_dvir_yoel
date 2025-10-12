@@ -198,7 +198,7 @@ class BAYES_MISP:
                 point_total_contribution = batched_diffs(self.K, self.C, diff_method=self.diff_method)
             
             # TODO: In Batched_diffs watch what happens to C in rows (~ theoretically cols) of labeled samples (negative control??)
-            # Answer: the fact that they are labeled is completely ignored. (I think it is good and negative control is applied)
+            # Answer: the fact that they are labeled is completely ignored. (I think it is good and negative control is applied however there is no fixing of a 1-hot)
             point_total_contribution[curr_l_set] = -np.inf # Prevent re-sampling already labeled samples
             sampled_point_idx = point_total_contribution.argmax().item()
             chosen_label = self.train_labels[sampled_point_idx].item() # get label from oracle
@@ -248,6 +248,52 @@ def batched_diffs(K, C, alpha, number_of_classes, chunk_size=1024, diff_method="
         else:
             raise ValueError(f"Unknown diff method: {diff_method}")
     return result
+
+
+def expectation_margin(K, C, chunk_size=1024):
+
+    # TODO: test for integrity. test on large data on gpu-cpu
+
+    # TODO: check datatypes integrity
+    # TODO: check that the needed devices are being used each time.
+
+
+
+    #TODO: avoid checking labeled points. When using them as neg-control for other candidates - maybe the computation should be optimised.
+    D, N = K.shape
+    result = torch.empty(D).to(device=C.device) #TODO: this is actually unneccessary beacuse we can keep the max only for the batches. Consider changing if vmem is not enough. 
+    S = torch.sum(C, dim=1) # Sum of C at each row. For later normalisation purpose.
+    topk_vals, topk_idx = torch.topk(C, k=2, dim=1) # Top firse and second per row. For original margin ((topk_vals[:,0]-topk_vals[:,1])/S)and later comparisons. 
+    C_expanded = C.unsqueeze(0) # shape = (1, N, M)
+    for start in range(0, N, chunk_size):
+        end = min(start + chunk_size, N)
+        k = K[start:end]
+        # Hypothetical updates:
+        k_expanded = k.unsqueeze(2) # shape = ((end-start), N, 1)
+        updates = torch.add(C_expanded, k_expanded) # by broadcasting for each candidate its kernel is added to each of the labels for each datapoint shape ((end-start), N, M)
+
+        # new margins (relus can replace max and min):
+        old_first, old_second = topk_vals[:,0].view(1,N,1), topk_vals[:,1].view(1,N,1)
+        margins = torch.relu(updates - old_first) + torch.relu(old_first - updates) - torch.relu(old_second - updates)
+        weights = C[start:end] / (C[start:end].sum(dim=1, keepdim=True))
+        expected = torch.einsum('bnm,bm->bn', margins, weights)
+
+        # Correction to expected in max indices (the relu formula leaks there):
+        correction = (topk_vals[:,0] - topk_vals[:,1]).view(1,N) * weights.gather(1, topk_idx[:,0].view(1,N).expand(weights.size(0),N))
+        expected += correction
+        D_bn = S.view(1, N) + k                     
+        expected = expected / D_bn                   
+        scores = expected.sum(dim=1)            
+        baseline = ((topk_vals[:, 0] - topk_vals[:, 1]) / S).sum()  # scalar
+        result[start:end] = scores - baseline
+    return result
+
+
+
+
+
+
+
 
 
 def batched_diffs_weighted(K, C, alpha, number_of_classes, chunk_size=32, diff_method="abs_diff"):
